@@ -1,3 +1,6 @@
+# This file is a derivative of repeat_copy.py created by SiliconSloth.
+# The license header of the original file is retained here.
+#
 # Copyright 2018 Jörg Franke
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -60,11 +63,14 @@ class AdditionTask():
         return sample
 
     def create_sequence(self, length, feature_width):
+        # Generate inputs that are at most half the maximum value for the input length, to prevent addition overflow.
         return np.concatenate([self.rng.randint(feature_width, size=length-1), [self.rng.randint(feature_width/2)]])
 
     @staticmethod
     def resolve_overflows(sequence, feature_width):
         carry = 0
+        # Remove any overflow on digits greater than or equal to the base value
+        # by carrying into the next digit.
         for i in range(sequence.shape[0]):
             sequence[i] += carry
             carry = int(sequence[i] / feature_width)

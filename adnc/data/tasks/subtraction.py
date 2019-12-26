@@ -1,3 +1,6 @@
+# This file is a derivative of repeat_copy.py created by SiliconSloth.
+# The license header of the original file is retained here.
+#
 # Copyright 2018 Jörg Franke
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,6 +53,7 @@ class SubtractionTask():
         sequence2 = self.create_sequence(length, feature_width)
         answer = self.resolve_overflows(sequence1 + sequence2, feature_width)
 
+        # This is the same as the addition task but with the second operand and result swapped.
         x_word = np.concatenate([answer, [feature_width], sequence1, [feature_width], [0 for _ in range(length)]])
         y_word = np.concatenate([[0 for _ in range(length*2 + 2)], sequence2])
 
@@ -60,11 +64,14 @@ class SubtractionTask():
         return sample
 
     def create_sequence(self, length, feature_width):
+        # Generate inputs that are at most half the maximum value for the input length, to prevent addition overflow.
         return np.concatenate([self.rng.randint(feature_width, size=length-1), [self.rng.randint(feature_width/2)]])
 
     @staticmethod
     def resolve_overflows(sequence, feature_width):
         carry = 0
+        # Remove any overflow on digits greater than or equal to the base value
+        # by carrying into the next digit.
         for i in range(sequence.shape[0]):
             sequence[i] += carry
             carry = int(sequence[i] / feature_width)

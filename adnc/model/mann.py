@@ -173,8 +173,11 @@ class MANN():
         return loss
 
     def get_accuracy(self, prediction):
+        # Round values <= 0.5 to 0 and > 0.5 to 1.
         errors = tf.abs(tf.to_float(tf.greater(prediction, 0.5)) - self.target)
+        # Masked errors for each input sequence. Summed over input vector dimension, then sequence dimension.
         per_sequence = tf.reduce_sum(tf.reduce_sum(errors, axis=2) * self.mask, axis=0)
+        # Number of incorrect answers.
         error_count = tf.count_nonzero(per_sequence)
         accuracy = (1 - error_count / self.batch_size) * 100
         return accuracy

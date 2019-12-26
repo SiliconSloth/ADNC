@@ -163,10 +163,15 @@ with tf.Session(config=conf) as sess:
             writer.add_summary(ls, e * dl.batch_amount('train') + step)
 
             if (step % 100) == 0:
+                # Increase the input length once the accuracy reaches 95%.
+                # We only check this every 100 steps to prevent repeated increments
+                # due to the high accuracy lingering for a few steps.
                 if acc > 95:
                     dl.dataset.config['set_list']['train']['max_length'] += 1
                     dl.dataset.config['set_list']['train']['min_length'] += 1
 
+                # Print the network's answers.
+                # argmax converts one-hot vectors back to digits.
                 for q, o, m in zip(np.argmax(sample['x'], axis=2).T, np.argmax(outs, axis=2).T, sample['m'].T):
                     a = "".join(reversed([str(x) for x in o[m == 1]]))
                     q1 = "".join(reversed([str(q[i]) for i in range(len(a))]))

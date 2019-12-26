@@ -1,3 +1,6 @@
+# This file is a derivative of repeat_copy.py created by SiliconSloth.
+# The license header of the original file is retained here.
+#
 # Copyright 2018 Jörg Franke
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,9 +48,13 @@ class MultiplicationTask():
         return samples
 
     def create_sample(self, length, feature_width):
+        # Random number between 0 and the max value, inclusive.
         result = self.rng.randint(feature_width**length)
+        # Choose a factor between 1 and the result, or any valid number if the result is 0.
         factor1 = self.rng.randint(result) + 1 if result > 0 else self.rng.randint(feature_width**length)
+        # Get the second factor by dividing by the first and rounding down.
         factor2 = int(result / factor1)
+        # Compute the new result with the rounded factor.
         result = factor1 * factor2
 
         sequence1 = self.int_to_sequence(factor1, length, feature_width)

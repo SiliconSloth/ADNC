@@ -1,3 +1,6 @@
+# This file is a derivative of repeat_copy.py created by SiliconSloth.
+# The license header of the original file is retained here.
+#
 # Copyright 2018 Jörg Franke
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,12 +62,16 @@ class SuccessorTask():
         return sample
 
     def create_sequence(self, length, feature_width):
+        # Choose inputs such that the number of trailing nines is uniformly distributed,
+        # as this is what largely determines the difficulty of the problem.
+        # The last digit is at most 8 to prevent overflow.
         nines_length = self.rng.randint(length)
         return np.concatenate([[9] * nines_length, self.rng.randint(feature_width, size=length-nines_length-1), [self.rng.randint(feature_width-1)]])
 
     @staticmethod
     def increment_sequence(sequence, feature_width):
         out = sequence.copy()
+        # Overflow all trailing nines to zero, increment the first non-overflowing digit, then stop.
         for i in range(out.shape[0]):
             if out[i] < feature_width-1:
                 out[i] += 1
