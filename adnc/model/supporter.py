@@ -124,7 +124,7 @@ class Supporter():
 
         if os.path.isfile(monitor_file + ".npy"):
             # print('load')
-            log = np.load(monitor_file + ".npy")[()]
+            log = np.load(monitor_file + ".npy", allow_pickle=True)[()]
 
             for n, v in zip(names, value):
                 log[n].append(v)

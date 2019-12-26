@@ -101,6 +101,7 @@ class MANN():
         self.unweighted_outputs = unweighted_outputs
         self.prediction, self.outputs = self._output_layer(unweighted_outputs)
         self.loss = self.get_loss(self.prediction)
+        self.accuracy = self.get_accuracy(self.prediction)
 
     def _output_layer(self, outputs):
         """
@@ -170,6 +171,13 @@ class MANN():
         else:
             raise UserWarning("Unknown loss function, use cross_entropy or mse")
         return loss
+
+    def get_accuracy(self, prediction):
+        errors = tf.abs(tf.to_float(tf.greater(prediction, 0.5)) - self.target)
+        per_sequence = tf.reduce_sum(tf.reduce_sum(errors, axis=2) * self.mask, axis=0)
+        error_count = tf.count_nonzero(per_sequence)
+        accuracy = (1 - error_count / self.batch_size) * 100
+        return accuracy
 
     def unidirectional(self, inputs, controller_config, memory_unit_config, analyse=False, reuse=False):
         """

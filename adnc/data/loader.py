@@ -19,6 +19,10 @@ import numpy as np
 from adnc.data.utils.batch_generator import BatchGenerator
 
 from adnc.data.tasks.repeat_copy import CopyTask
+from adnc.data.tasks.successors import SuccessorTask
+from adnc.data.tasks.addition import AdditionTask
+from adnc.data.tasks.subtraction import SubtractionTask
+from adnc.data.tasks.multiplication import MultiplicationTask
 from adnc.data.tasks.cnn_rc import ReadingComprehension
 from adnc.data.tasks.babi import bAbI
 
@@ -38,6 +42,14 @@ class DataLoader():
 
         if config['data_set'] == 'copy_task':
             self.dataset = CopyTask(self.config)
+        elif config['data_set'] == 'successor_task':
+            self.dataset = SuccessorTask(self.config)
+        elif config['data_set'] == 'addition_task':
+            self.dataset = AdditionTask(self.config)
+        elif config['data_set'] == 'subtraction_task':
+            self.dataset = SubtractionTask(self.config)
+        elif config['data_set'] == 'multiplication_task':
+            self.dataset = MultiplicationTask(self.config)
         elif config['data_set'] == 'cnn':
             self.dataset = ReadingComprehension(self.config)
         elif config['data_set'] == 'babi':

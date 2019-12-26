@@ -47,7 +47,7 @@ restore_checkpoint = args.check  # allows to restore a specific checkpoint
 if not restore_checkpoint:
     restore_checkpoint = False
 
-dataset_name = 'babi_task'  # defines the dataset choosen from config
+dataset_name = 'multiplication_task'  # defines the dataset choosen from config
 model_type = 'mann'  # type of model, currently only 'mann'
 
 experiment_name = 'github_example'  # name of the experiment
@@ -64,14 +64,12 @@ sp = Supporter(project_dir, config_file, experiment_name, dataset_name, model_ty
                session_no)  # initializes supporter class for experiment handling
 
 dl = DataLoader(sp.config(dataset_name))  # initializes data loader class
-valid_loader = dl.get_data_loader('valid')  # gets a valid data iterator
-train_loader = dl.get_data_loader('train')  # gets a train data iterator
 
 if analyse:
     ana = Analyser(sp.session_dir, save_fig=plot_process,
                    save_variables=True)  # initilizes a analyzer class
 
-sp.config(model_type)['input_size'] = dl.x_size  # after the data loader is initilized, the input size
+sp.config(model_type)['input_size'] = dl.x_size  # after the data loader is initialized, the input size
 sp.config(model_type)['output_size'] = dl.y_size  # and output size is known and used for the model
 model = MANN(sp.config('mann'), analyse)  # initilizes the model class
 
@@ -81,11 +79,20 @@ trainer = Optimizer(sp.config('training'), model.loss,
                     model.trainable_variables)  # initilizes a trainer class with the optimizer
 optimizer = trainer.optimizer  # the optimizer for training, similar to TF
 
+min_len = tf.get_variable("min_len", [], dtype=tf.int32)
+max_len = tf.get_variable("max_len", [], dtype=tf.int32)
+min_placeholder = tf.placeholder(tf.int32)
+max_placeholder = tf.placeholder(tf.int32)
+assign_min = min_len.assign(min_placeholder)
+assign_max = max_len.assign(max_placeholder)
+
 init_op = tf.global_variables_initializer()
 saver = tf.train.Saver(max_to_keep=30)
 
 summary_train_loss = tf.summary.scalar("train_loss", model.loss)
 summary_valid_loss = tf.summary.scalar("valid_loss", model.loss)
+summary_accuracy = tf.summary.scalar("accuracy", model.accuracy)
+# summary_length = tf.summary.scalar("max_length", max_len)
 lstm_scale = tf.summary.scalar("lstm_scale", tf.reduce_mean(model.trainable_variables[2]))
 lstm_beta = tf.summary.scalar("lstm_beta", tf.reduce_mean(model.trainable_variables[3]))
 
@@ -105,6 +112,8 @@ conf.allow_soft_placement = True
 with tf.Session(config=conf) as sess:
     if sp.restore and restore_checkpoint:  # restores model dumps after a crash or to continiue training
         saver.restore(sess, os.path.join(sp.session_dir, "model_dump_{}.ckpt".format(restore_checkpoint)))
+        dl.dataset.config['set_list']['train']['min_length'] = sess.run(min_len)
+        dl.dataset.config['set_list']['train']['max_length'] = sess.run(max_len)
         epoch_start = restore_checkpoint + 1
         sp.pub("restart training with checkpoint {}".format(epoch_start - 1))
     elif sp.restore and not restore_checkpoint:
@@ -114,12 +123,18 @@ with tf.Session(config=conf) as sess:
             sp.pub("start new training")
         else:
             saver.restore(sess, tf.train.latest_checkpoint(sp.session_dir))
+            dl.dataset.config['set_list']['train']['min_length'] = sess.run(min_len)
+            dl.dataset.config['set_list']['train']['max_length'] = sess.run(max_len)
             epoch_start = int(tf.train.latest_checkpoint(sp.session_dir).split('_')[-1].split('.')[0]) + 1
             sp.pub("restart training with checkpoint {}".format(epoch_start - 1))
     else:
         sess.run(init_op)
         epoch_start = 0
         sp.pub("start new training")
+
+    summary_length = tf.summary.scalar("max_length", max_len)
+    valid_loader = dl.get_data_loader('valid')  # gets a valid data iterator
+    train_loader = dl.get_data_loader('train')  # gets a train data iterator
 
     writer = tf.summary.FileWriter(os.path.join(sp.session_dir, "summary"), sess.graph)
 
@@ -133,16 +148,33 @@ with tf.Session(config=conf) as sess:
         time_0 = time.time()
 
         for step in tqdm(range(int(dl.batch_amount('train')))):  # loop over all training samples
+            # dl.dataset.config['set_list']['train']['max_length_curr'] = dl.dataset.config['set_list']['train']['max_length'] + int((e * dl.batch_amount('train') + step) / 20000)
 
             sample = next(train_loader)  # new training sample from train iterator
 
-            _, c, summary, lb, ls = sess.run([optimizer, model.loss, summary_train_loss, lstm_beta, lstm_scale],
-                                             feed_dict={data: sample['x'], target: sample['y'], mask: sample['m']})
+            _, c, _, _, summary, sum_acc, sum_len, acc, outs, lb, ls = sess.run([optimizer, model.loss, assign_min, assign_max, summary_train_loss, summary_accuracy, summary_length, model.accuracy, model.outputs, lstm_beta, lstm_scale],
+                                             feed_dict={data: sample['x'], target: sample['y'], mask: sample['m'], min_placeholder: dl.dataset.config['set_list']['train']['min_length'], max_placeholder: dl.dataset.config['set_list']['train']['max_length']})
             train_cost += c
             train_count += 1
             writer.add_summary(summary, e * dl.batch_amount('train') + step)
+            writer.add_summary(sum_acc, e * dl.batch_amount('train') + step)
+            writer.add_summary(sum_len, e * dl.batch_amount('train') + step)
             writer.add_summary(lb, e * dl.batch_amount('train') + step)
             writer.add_summary(ls, e * dl.batch_amount('train') + step)
+
+            if (step % 100) == 0:
+                if acc > 95:
+                    dl.dataset.config['set_list']['train']['max_length'] += 1
+                    dl.dataset.config['set_list']['train']['min_length'] += 1
+
+                for q, o, m in zip(np.argmax(sample['x'], axis=2).T, np.argmax(outs, axis=2).T, sample['m'].T):
+                    a = "".join(reversed([str(x) for x in o[m == 1]]))
+                    q1 = "".join(reversed([str(q[i]) for i in range(len(a))]))
+                    q2 = "".join(reversed([str(q[len(a) + 1 + i]) for i in range(len(a))]))
+                    print("%s * %s = %s" % (q1, q2, a))
+
+            # if (e * dl.batch_amount('train') + step) % 40000 == 0:
+            #     dl.dataset.config['set_list']['train']['max_length'] += 1
 
         valid_cost = 0
         valid_count = 0
@@ -168,6 +200,8 @@ with tf.Session(config=conf) as sess:
 
             save_path = saver.save(sess,
                                    os.path.join(sp.session_dir, "model_dump_{}.ckpt".format(e)))  # dumps model weights
+            print(dl.dataset.config['set_list']['train']['min_length'])
+            print(dl.dataset.config['set_list']['train']['max_length'])
 
             if analyse:  # if analysis, it logs memory influence and plots functionality
 
